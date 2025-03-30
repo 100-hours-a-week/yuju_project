@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>과일/채소 이미지 인식</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            width: 300px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-container img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .result {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .prediction {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .confidence {
+            font-size: 18px;
+            color: #666;
+        }
+        .top-predictions {
+            margin-top: 20px;
+            width: 300px;
+        }
+        .prediction-bar {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .prediction-label {
+            width: 150px;
+            text-align: left;
+        }
+        .prediction-bar-container {
+            flex-grow: 1;
+            background-color: #eee;
+            border-radius: 4px;
+        }
+        .prediction-bar-fill {
+            background-color: #4CAF50;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 5px;
+            color: white;
+            font-size: 12px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>과일/채소 이미지 인식</h1>
+        <p>이미지를 업로드하여 어떤 과일 또는 채소인지 확인해보세요.</p>
+        
+        <div class="upload-container" id="upload-container">
+            <input type="file" id="file-input" accept="image/*" class="hidden">
+            <p id="upload-text">이미지를 드래그하거나 클릭하여 업로드</p>
+            <img id="preview-image" class="hidden">
+        </div>
+        
+        <button id="upload-button">이미지 업로드</button>
+        <button id="predict-button" class="hidden">예측하기</button>
+        
+        <div class="result hidden" id="result">
+            <div class="prediction" id="prediction"></div>
+            <div class="confidence" id="confidence"></div>
+            <div class="top-predictions" id="top-predictions"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadContainer = document.getElementById('upload-container');
+            const fileInput = document.getElementById('file-input');
+            const uploadText = document.getElementById('upload-text');
+            const previewImage = document.getElementById('preview-image');
+            const uploadButton = document.getElementById('upload-button');
+            const predictButton = document.getElementById('predict-button');
+            const result = document.getElementById('result');
+            const prediction = document.getElementById('prediction');
+            const confidence = document.getElementById('confidence');
+            const topPredictions = document.getElementById('top-predictions');
+            
+            // 업로드 컨테이너 클릭 시 파일 선택 창 열기
+            uploadContainer.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            uploadButton.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // 파일 선택 시 이미지 미리보기
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(event) {
+                        previewImage.src = event.target.result;
+                        previewImage.classList.remove('hidden');
+                        uploadText.classList.add('hidden');
+                        predictButton.classList.remove('hidden');
+                        result.classList.add('hidden');
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            // 드래그 앤 드롭 설정
+            uploadContainer.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadContainer.style.borderColor = '#4CAF50';
+            });
+            
+            uploadContainer.addEventListener('dragleave', function() {
+                uploadContainer.style.borderColor = '#ccc';
+            });
+            
+            uploadContainer.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadContainer.style.borderColor = '#ccc';
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    const file = e.dataTransfer.files[0];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(event) {
+                        previewImage.src = event.target.result;
+                        previewImage.classList.remove('hidden');
+                        uploadText.classList.add('hidden');
+                        predictButton.classList.remove('hidden');
+                        result.classList.add('hidden');
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            // 예측 버튼 클릭 시
+            predictButton.addEventListener('click', function() {
+                if (fileInput.files.length === 0) {
+                    alert('먼저 이미지를 업로드해주세요.');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // 로딩 상태 표시
+                prediction.textContent = '분석 중...';
+                confidence.textContent = '';
+                topPredictions.innerHTML = '';
+                result.classList.remove('hidden');
+                
+                // 서버에 예측 요청
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        prediction.textContent = '오류 발생';
+                        confidence.textContent = data.error;
+                    } else {
+                        prediction.textContent = data.class_name;
+                        confidence.textContent = `확신도: ${data.confidence}`;
+                        
+                        // 상위 예측 결과 표시
+                        topPredictions.innerHTML = '<h3>상위 예측 결과</h3>';
+                        data.top_predictions.forEach(pred => {
+                            const predBar = document.createElement('div');
+                            predBar.className = 'prediction-bar';
+                            
+                            const predLabel = document.createElement('div');
+                            predLabel.className = 'prediction-label';
+                            predLabel.textContent = pred.class;
+                            
+                            const predBarContainer = document.createElement('div');
+                            predBarContainer.className = 'prediction-bar-container';
+                            
+                            const predBarFill = document.createElement('div');
+                            predBarFill.className = 'prediction-bar-fill';
+                            predBarFill.style.width = `${pred.probability}%`;
+                            predBarFill.textContent = `${pred.probability.toFixed(1)}%`;
+                            
+                            predBarContainer.appendChild(predBarFill);
+                            predBar.appendChild(predLabel);
+                            predBar.appendChild(predBarContainer);
+                            
+                            topPredictions.appendChild(predBar);
+                        });
+                    }
+                })
+                .catch(error => {
+                    prediction.textContent = '오류 발생';
+                    confidence.textContent = '서버 연결 오류';
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
